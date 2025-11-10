@@ -10,18 +10,17 @@ class settingsFactory:
   ):
     self.secretScopeName = secretScopeName
     self.storageAccountName = dbutils.secrets.get(self.secretScopeName, "dls-blobName")
-    self.storageAccountAccessKey = dbutils.secrets.get(secretScopeName, "dls-key")
+    self.storageAccountAccessKey = dbutils.secrets.get(self.secretScopeName, "dls-key")
 
   def configure_default_azure_storage_access(self) -> None:
       spark.conf.set(
-        f"fs.azure.account.key.{self.storageAccountName}.dfs.core.windows.net", 
+        f"fs.azure.account.key.{self.storageAccountName}.blob.core.windows.net", 
         self.storageAccountAccessKey)
 
 defaultSettings = settingsFactory(
   secretScopeName = "key-vault-secret"
 )
 defaultSettings.configure_default_azure_storage_access()
-  
 
 # COMMAND ----------
 
