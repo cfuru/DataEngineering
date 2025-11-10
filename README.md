@@ -4,6 +4,14 @@
 
 This repo contains the Databricks Silver pipeline that reads `raw/sold/all/*.csv` exports (via `soldObjects` notebook), applies schema-driven cleansing, deduplicates, and merges the result into `silver.Fact_SoldObjects` stored as Delta Lake data under the configured silver container.
 
+### Testing
+
+The helper module at `Databricks/Notebooks/utils/pipeline_helpers.py` exposes the schema definition, rename map, and normalization helpers that the notebook consumes. Run the unit tests that cover those helpers with:
+
+```
+pytest tests/test_pipeline_helpers.py
+```
+
 ### Running the notebook
 
 1. Set the widget values before running:
