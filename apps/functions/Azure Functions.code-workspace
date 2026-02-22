@@ -1,0 +1,25 @@
+{
+    "folders": [
+        {
+            "path": "func-booli-scraper-001"
+        },
+        {
+            "path": "func-yahoo-scraper-001"
+        }
+    ],
+    "settings": {
+        "debug.internalConsoleOptions": "neverOpen"
+    },
+    "launch": {
+        "configurations": [],
+        "compounds": [
+            {
+                "name": "Attach to both apps",
+                "configurations": [
+                    "Attach to func-booli-scraper-001",
+                    "Attach to func-yahoo-scraper-001"
+                ]
+            }
+        ]
+    }
+}

@@ -1,29 +1,58 @@
 # DataEngineering
 
-## SoldObjects Silver Pipeline
+This repository is organized as a scalable data platform monorepo:
 
-This repo contains the Databricks Silver pipeline that reads `raw/sold/all/*.csv` exports (via `soldObjects` notebook), applies schema-driven cleansing, deduplicates, and merges the result into `silver.Fact_SoldObjects` stored as Delta Lake data under the configured silver container.
+- Azure Functions ingest source data into ADLS raw zones.
+- Databricks notebooks transform raw data into curated Delta tables (silver/gold/star-schema marts).
+- Shared libraries, contracts, and infra definitions are separated from app code.
 
-### Testing
+## Repository Layout
 
-The helper module at `Databricks/Notebooks/utils/pipeline_helpers.py` exposes the schema definition, rename map, and normalization helpers that the notebook consumes. Run the unit tests that cover those helpers with:
-
+```text
+apps/
+  functions/
+    booli/
+    yahoo/
+  databricks/
+    real_estate/
+libs/
+contracts/
+infra/
+docs/
+notebooks/
+data/
+scripts/
 ```
-pytest tests/test_pipeline_helpers.py
+
+## Data Platform Conventions
+
+- Ingestion paths: `raw/<source>/<entity>/ingest_date=YYYY-MM-DD/...`
+- Curated paths: `bronze/<domain>/<entity>/...`, `silver/<domain>/<entity>/...`
+- Star schema paths: `gold/<domain>/dim_<name>/...` and `gold/<domain>/fact_<name>/...`
+
+## Current Apps
+
+- Databricks real estate transformations:
+  `apps/databricks/real_estate/notebooks/`
+- Azure Functions (Booli ingestion):
+  `apps/functions/booli/function_app/`
+- Azure Functions (Yahoo ingestion):
+  `apps/functions/yahoo/function_app/`
+
+Exploration notebooks were moved to:
+
+- `notebooks/exploration/booli/`
+- `notebooks/exploration/yahoo/`
+
+Local heavy artifacts and samples were moved to:
+
+- `data/local_cache/`
+- `data/samples/`
+
+## Testing
+
+Run helper tests for the Databricks real estate app:
+
+```bash
+pytest -q apps/databricks/real_estate/tests/test_pipeline_helpers.py
 ```
-
-### Running the notebook
-
-1. Set the widget values before running:
-   * `raw_container` (default `raw`): container that holds the incoming `sold/all` CSVs.
-   * `silver_container` (default `silver`): container that holds the Delta table files.
-2. The notebook logs the UTC `run_timestamp` and enforces that at least one CSV file exists before proceeding.
-3. After merging the cleaned view into `silver.Fact_SoldObjects`, the notebook removes `raw/sold/` only when files were processed, preventing accidental deletion on an empty landing zone.
-
-### Secrets and configuration
-
-The shared `pyutils` notebook looks up:
-* `dls-blobName`
-* `dls-key`
-
-from the `key-vault-secret` scope and registers `fs.azure.account.key.<storage>.blob.core.windows.net` so Spark can access both raw and silver containers via `wasbs://` and `abfss://` URIs.
