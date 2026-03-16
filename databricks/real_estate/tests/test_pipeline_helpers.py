@@ -1,4 +1,4 @@
-from apps.databricks.real_estate.notebooks.utils import pipeline_helpers
+from databricks.real_estate.notebooks.utils import pipeline_helpers
 
 
 def test_normalize_source_filename_handles_missing_paths():

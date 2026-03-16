@@ -1,27 +1,18 @@
 # DataEngineering
 
-This repository is organized as a scalable data platform monorepo:
-
-- Azure Functions ingest source data into ADLS raw zones.
-- Databricks notebooks transform raw data into curated Delta tables (silver/gold/star-schema marts).
-- Shared libraries, contracts, and infra definitions are separated from app code.
+Azure Functions ingest source data into ADLS raw zones. Databricks notebooks transform raw data into curated Delta tables (silver/gold/star-schema marts).
 
 ## Repository Layout
 
 ```text
-apps/
-  functions/
-    booli/
-    yahoo/
-  databricks/
-    real_estate/
-libs/
-contracts/
-infra/
-docs/
-notebooks/
+functions/
+  booli/
+  yahoo/
+databricks/
+  real_estate/
+notebooks/exploration/
 data/
-scripts/
+docs/
 ```
 
 ## Data Platform Conventions
@@ -32,27 +23,14 @@ scripts/
 
 ## Current Apps
 
-- Databricks real estate transformations:
-  `apps/databricks/real_estate/notebooks/`
-- Azure Functions (Booli ingestion):
-  `apps/functions/booli/function_app/`
-- Azure Functions (Yahoo ingestion):
-  `apps/functions/yahoo/function_app/`
-
-Exploration notebooks were moved to:
-
-- `notebooks/exploration/booli/`
-- `notebooks/exploration/yahoo/`
-
-Local heavy artifacts and samples were moved to:
-
-- `data/local_cache/`
-- `data/samples/`
+- Databricks real estate transformations: `databricks/real_estate/notebooks/`
+- Azure Functions (Booli ingestion): `functions/booli/`
+- Azure Functions (Yahoo ingestion): `functions/yahoo/`
 
 ## Testing
 
 Run helper tests for the Databricks real estate app:
 
 ```bash
-pytest -q apps/databricks/real_estate/tests/test_pipeline_helpers.py
+pytest -q databricks/real_estate/tests/test_pipeline_helpers.py
 ```
