@@ -1,0 +1,37 @@
+.DS_Store
+.pytest_cache/
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Editor/IDE
+.vscode/
+.idea/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Azure Functions local/runtime artifacts
+local.settings.json
+bin/
+obj/
+__blobstorage__/
+__queuestorage__/
+__azurite_db*__.json
+.python_packages/
+
+# Repository-local data artifacts
+data/local_cache/
+
+# Generated Python packaging artifacts
+build/
+dist/
+*.egg-info/
+
+# BI artifacts
+*.pbix
+notebooks/exploration/
