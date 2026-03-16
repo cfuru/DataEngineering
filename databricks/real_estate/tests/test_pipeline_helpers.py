@@ -1,6 +1,10 @@
 import pipeline_helpers
 
 
+# ---------------------------------------------------------------------------
+# Existing tests
+# ---------------------------------------------------------------------------
+
 def test_normalize_source_filename_handles_missing_paths():
     assert pipeline_helpers.normalize_source_filename(None) is None
     assert pipeline_helpers.normalize_source_filename("") is None
@@ -9,12 +13,84 @@ def test_normalize_source_filename_handles_missing_paths():
         == "data.csv"
     )
 
+
+def test_normalize_source_filename_with_trailing_slash():
+    assert (
+        pipeline_helpers.normalize_source_filename("wasbs://raw/sold/data.csv/")
+        == "data.csv"
+    )
+
+
 def test_schema_fields_list_contains_booli_id():
     field_names = pipeline_helpers.schema_field_names()
     assert "booliId" in field_names
     assert "soldPrice.raw" in field_names
 
+
 def test_rename_dictionary_picks_higher_order_names():
     assert pipeline_helpers.RENAME_DICT.get("soldPrice.raw") == "soldPrice"
     assert "typeName" in pipeline_helpers.RENAME_DICT.values()
 
+
+# ---------------------------------------------------------------------------
+# Schema consistency tests — catch drift between derived constants
+# ---------------------------------------------------------------------------
+
+def test_all_rename_sources_exist_in_schema():
+    """Every key in RENAME_DICT must be a field in SOLD_SCHEMA_FIELDS."""
+    schema_names = set(pipeline_helpers.schema_field_names())
+    for old_name in pipeline_helpers.RENAME_DICT:
+        assert old_name in schema_names, (
+            f"RENAME_DICT references '{old_name}' which is not in SOLD_SCHEMA_FIELDS"
+        )
+
+
+def test_all_select_columns_exist_in_schema():
+    """Every column in SELECT_COLUMNS must map to a schema field (minus source_file)."""
+    schema_names = set(pipeline_helpers.schema_field_names())
+    for col in pipeline_helpers.SELECT_COLUMNS:
+        clean = col.strip("`")
+        if clean == "source_file":
+            continue  # added dynamically via withColumn
+        assert clean in schema_names, (
+            f"SELECT_COLUMNS references '{clean}' which is not in SOLD_SCHEMA_FIELDS"
+        )
+
+
+def test_cast_columns_use_post_rename_names():
+    """CAST_COLUMN_TYPES keys must be the final (post-rename) column names."""
+    final_names = set()
+    for name in pipeline_helpers.schema_field_names():
+        final = pipeline_helpers.RENAME_DICT.get(name, name)
+        final_names.add(final)
+    for cast_col in pipeline_helpers.CAST_COLUMN_TYPES:
+        assert cast_col in final_names, (
+            f"CAST_COLUMN_TYPES references '{cast_col}' which is not a final column name"
+        )
+
+
+def test_required_columns_exist_in_final_columns():
+    """REQUIRED_NON_NULL_COLUMNS must use post-rename names."""
+    final_names = set()
+    for name in pipeline_helpers.schema_field_names():
+        final = pipeline_helpers.RENAME_DICT.get(name, name)
+        final_names.add(final)
+    for req_col in pipeline_helpers.REQUIRED_NON_NULL_COLUMNS:
+        assert req_col in final_names, (
+            f"REQUIRED_NON_NULL_COLUMNS references '{req_col}' which is not a final column name"
+        )
+
+
+def test_rent_raw_bug_is_fixed():
+    """Regression: rent has no .raw suffix in source, so it should not appear in RENAME_DICT."""
+    assert "rent.raw" not in pipeline_helpers.RENAME_DICT
+    assert "rent" not in pipeline_helpers.RENAME_DICT
+
+
+def test_field_config_final_name():
+    """FieldConfig.final_name returns renamed if set, otherwise raw_name."""
+    for field in pipeline_helpers.SOLD_FIELDS:
+        if field.renamed:
+            assert field.final_name == field.renamed
+        else:
+            assert field.final_name == field.raw_name
