@@ -94,3 +94,47 @@ def test_field_config_final_name():
             assert field.final_name == field.renamed
         else:
             assert field.final_name == field.raw_name
+
+
+# ---------------------------------------------------------------------------
+# SQL builder tests
+# ---------------------------------------------------------------------------
+
+def test_build_select_rename_cast_sql_contains_all_fields():
+    """Generated SQL should reference every selected field."""
+    sql = pipeline_helpers.build_select_rename_cast_sql()
+    for f in pipeline_helpers.SOLD_FIELDS:
+        if not f.select:
+            continue
+        assert f.final_name in sql, f"Missing {f.final_name} in generated SQL"
+
+
+def test_build_select_rename_cast_sql_casts_correctly():
+    """Fields with cast_type should appear as CAST(... AS type)."""
+    sql = pipeline_helpers.build_select_rename_cast_sql()
+    for f in pipeline_helpers.SOLD_FIELDS:
+        if f.cast_type and f.select:
+            assert f"AS {f.cast_type})" in sql or f"AS {f.cast_type} )" in sql, (
+                f"Expected CAST AS {f.cast_type} for {f.raw_name}"
+            )
+
+
+def test_build_select_rename_cast_sql_includes_source_file():
+    sql_with = pipeline_helpers.build_select_rename_cast_sql(include_source_file=True)
+    sql_without = pipeline_helpers.build_select_rename_cast_sql(include_source_file=False)
+    assert "sourceFileName" in sql_with
+    assert "sourceFileName" not in sql_without
+
+
+def test_build_filter_sql_includes_required_columns():
+    """Filter SQL should have IS NOT NULL for every required field."""
+    sql = pipeline_helpers.build_filter_sql()
+    for f in pipeline_helpers.SOLD_FIELDS:
+        if f.required:
+            assert f"{f.final_name} IS NOT NULL" in sql
+
+
+def test_build_filter_sql_includes_extra_filters():
+    extra = ['LOWER(url) NOT LIKE "%annons%"']
+    sql = pipeline_helpers.build_filter_sql(extra_filters=extra)
+    assert "annons" in sql

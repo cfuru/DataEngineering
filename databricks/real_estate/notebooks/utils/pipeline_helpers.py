@@ -109,3 +109,53 @@ def log_step(step_name: str, detail: str = "") -> None:
     """Standardized pipeline logging."""
     ts = datetime.utcnow().isoformat()
     print(f"[{ts}] [{step_name}] {detail}")
+
+
+def build_select_rename_cast_sql(
+    fields: List[FieldConfig] = SOLD_FIELDS,
+    source_view: str = "raw_loaded",
+    include_source_file: bool = True,
+) -> str:
+    """Build a SQL SELECT that selects, renames, casts, and normalizes source_file in one pass.
+
+    Example output column: CAST(`soldPrice.raw` AS int) AS soldPrice
+    """
+    exprs = []
+    for f in fields:
+        if not f.select:
+            continue
+        # Quote raw names that contain dots or start with __
+        raw_ref = f"`{f.raw_name}`" if ("." in f.raw_name or f.raw_name.startswith("__")) else f.raw_name
+        alias = f.final_name
+
+        if f.cast_type and f.renamed:
+            exprs.append(f"CAST({raw_ref} AS {f.cast_type}) AS {alias}")
+        elif f.cast_type:
+            exprs.append(f"CAST({raw_ref} AS {f.cast_type}) AS {alias}")
+        elif f.renamed:
+            exprs.append(f"{raw_ref} AS {alias}")
+        else:
+            exprs.append(raw_ref)
+
+    if include_source_file:
+        exprs.append("normalize_source_filename(source_file) AS sourceFileName")
+
+    columns_sql = ",\n    ".join(exprs)
+    return f"SELECT\n    {columns_sql}\nFROM {source_view}"
+
+
+def build_filter_sql(
+    fields: List[FieldConfig] = SOLD_FIELDS,
+    source_view: str = "renamed",
+    extra_filters: Optional[List[str]] = None,
+) -> str:
+    """Build a SQL SELECT with WHERE clauses for required non-null columns and extra filters."""
+    conditions = []
+    for f in fields:
+        if f.required:
+            conditions.append(f"{f.final_name} IS NOT NULL")
+    if extra_filters:
+        conditions.extend(extra_filters)
+
+    where_clause = "\n    AND ".join(conditions)
+    return f"SELECT *\nFROM {source_view}\nWHERE {where_clause}" if conditions else f"SELECT * FROM {source_view}"
