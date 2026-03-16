@@ -1,3 +1,4 @@
+import json
 import queue
 import pandas as pd
 import logging
@@ -226,7 +227,7 @@ class Booli:
                     "ascending": false        
                 }    
             },    
-            "query": "query searchSold($input: SearchRequest) {  search: searchSold(input: $input) {    pages    totalCount    result {      booliId      soldPrice {raw}   rent{raw}   streetAddress       constructionYear       floor{raw}      soldSqmPrice {raw}      soldPriceAbsoluteDiff {raw}      soldPricePercentageDiff {raw}      listPrice {raw}      livingArea {raw}      rooms {raw}      rooms {raw}      objectType      descriptiveAreaName      soldPriceType      daysActive      soldDate      latitude      longitude      url      __typename    }    __typename  }}"    
+            "query": "query searchSold($input: SearchRequest) {  search: searchSold(input: $input) {    pages    totalCount    result {      booliId      soldPrice{raw}      rent{raw}      streetAddress      constructionYear      floor{raw}      soldSqmPrice{raw}      soldPriceAbsoluteDiff{raw}      soldPricePercentageDiff{raw}      listPrice{raw}      firstPrice{raw}      livingArea{raw}      additionalArea{raw}      rooms{raw}      objectType      descriptiveAreaName      soldPriceType      daysActive      soldDate      latitude      longitude      url      operatingCost{raw}      tenureForm      plotArea{raw}      apartmentNumber{raw}      mapImage      created      soldPriceSource      source{name id type}      agent{name}      energyClass{__typename}      housingCoopId      housingCoop{name id}      areas{name id type}      __typename    }    __typename  }}"
         }"""
         headers = {
             'authority': "www.booli.se",
@@ -248,7 +249,51 @@ class Booli:
             return response.json()
         else:
             raise Exception("Query failed to run: {} - {}".format(response.status_code, response.json()))
-        
+
+    def run_query_housing_coop(self, housing_coop_id):
+        payload = {
+            "operationName": "housingCoop",
+            "variables": {"housingCoopId": str(housing_coop_id)},
+            "query": """query housingCoop($housingCoopId: ID!) {
+                housingCoop(housingCoopId: $housingCoopId) {
+                    name
+                    id
+                    orgNumber
+                    year
+                    addresses { streetAddress }
+                    areas { name id type }
+                    numberOfResidences { raw formatted }
+                    numberOfUnits { raw formatted }
+                    description { markdown }
+                    feeToLivingArea { raw formatted }
+                    debtToLivingArea { raw formatted }
+                    savings { raw formatted }
+                    totalLoan { raw formatted }
+                    annualReports { year documentId documentType }
+                    economy { description { markdown } }
+                }
+            }"""
+        }
+        headers = {
+            'authority': "www.booli.se",
+            'accept': "*/*",
+            'accept-language': "sv,en;q=0.9,en-GB;q=0.8,en-US;q=0.7",
+            'api-client': "booli.se",
+            'content-type': "application/json",
+            'origin': "https://www.booli.se",
+            'sec-ch-ua-mobile': "?0",
+            'sec-ch-ua-platform': "Windows",
+            'sec-fetch-dest': "empty",
+            'sec-fetch-mode': "cors",
+            'sec-fetch-site': "same-origin",
+            'user-agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.134 Safari/537.36 Edg/103.0.1264.77"
+        }
+        response = requests.post(self.path, data=json.dumps(payload), headers=headers)
+
+        if response.status_code == 200:
+            return response.json()
+        else:
+            raise Exception("Query failed to run: {} - {}".format(response.status_code, response.json()))
 
 #Structure created by Sarah Floris
 class DataCleaning:
