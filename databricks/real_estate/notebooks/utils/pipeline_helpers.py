@@ -32,6 +32,7 @@ class FieldConfig:
 # Everything else is derived automatically.
 # ---------------------------------------------------------------------------
 SOLD_FIELDS: List[FieldConfig] = [
+    # --- existing fields ---
     FieldConfig("booliId",                    "IntegerType", cast_type="int"),
     FieldConfig("streetAddress",              "StringType"),
     FieldConfig("constructionYear",           "IntegerType", cast_type="int",   required=True),
@@ -53,6 +54,23 @@ SOLD_FIELDS: List[FieldConfig] = [
     FieldConfig("listPrice.raw",              "DoubleType",  renamed="listPrice", cast_type="int", required=True),
     FieldConfig("livingArea.raw",             "FloatType",   renamed="livingArea", cast_type="float"),
     FieldConfig("rooms.raw",                  "FloatType",   renamed="rooms",   cast_type="float"),
+    # --- new fields from enriched GraphQL query ---
+    FieldConfig("firstPrice.raw",             "DoubleType",  renamed="firstPrice", cast_type="int"),
+    FieldConfig("operatingCost.raw",          "FloatType",   renamed="operatingCost", cast_type="float"),
+    FieldConfig("additionalArea.raw",         "FloatType",   renamed="additionalArea", cast_type="float"),
+    FieldConfig("plotArea.raw",               "FloatType",   renamed="plotArea", cast_type="float"),
+    FieldConfig("apartmentNumber.raw",        "StringType",  renamed="apartmentNumber"),
+    FieldConfig("tenureForm",                 "StringType"),
+    FieldConfig("mapImage",                   "StringType",  select=False),
+    FieldConfig("created",                    "StringType",  cast_type="timestamp"),
+    FieldConfig("soldPriceSource",            "StringType"),
+    FieldConfig("housingCoopId",              "IntegerType", cast_type="int"),
+    FieldConfig("source.name",                "StringType",  renamed="brokerFirm"),
+    FieldConfig("source.id",                  "StringType",  renamed="brokerFirmId"),
+    FieldConfig("source.type",                "StringType",  renamed="brokerFirmType", select=False),
+    FieldConfig("agent.name",                 "StringType",  renamed="agentName"),
+    FieldConfig("housingCoop.name",           "StringType",  renamed="housingCoopName"),
+    FieldConfig("housingCoop.id",             "StringType",  renamed="housingCoopIdStr", select=False),
 ]
 
 # ---------------------------------------------------------------------------
@@ -64,7 +82,7 @@ SOLD_SCHEMA_FIELDS: List[Tuple[str, str]] = [
 ]
 
 RENAME_DICT: Dict[str, str] = {
-    f.raw_name: f.renamed for f in SOLD_FIELDS if f.renamed
+    f.raw_name: f.renamed for f in SOLD_FIELDS if f.renamed and f.select
 }
 
 SELECT_COLUMNS: List[str] = [

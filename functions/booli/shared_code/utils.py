@@ -127,173 +127,61 @@ class AzureUtils:
         return secret_client.get_secret(secret_name)
 
 class Booli:
-    def __init__(self):
-        self.path = "https://www.booli.se/graphql"
-        
-    def run_query_upcoming(self, object_type, rooms, area_id, page):
-        payload = """{
-            "operationName":"searchForSale",
-            "variables":{
-                "input":{
-                    "filters":[
-                        {
-                            "key":"objectType",
-                            "value":"%s"
-                        },
-                        {
-                            "key":"rooms",
-                            "value":"%s"
-                        },
-                        {
-                            "key":"isNewConstruction",
-                            "value":""
-                        },
-                        {
-                            "key":"priceDecrease",
-                            "value":""
-                        },
-                        {
-                            "key":"upcomingSale",
-                            "value":""
-                        }
+    GRAPHQL_URL = "https://www.booli.se/graphql"
+    HEADERS = {
+        'authority': "www.booli.se",
+        'accept': "*/*",
+        'accept-language': "sv,en;q=0.9,en-GB;q=0.8,en-US;q=0.7",
+        'api-client': "booli.se",
+        'content-type': "application/json",
+        'origin': "https://www.booli.se",
+        'sec-ch-ua-mobile': "?0",
+        'sec-ch-ua-platform': "Windows",
+        'sec-fetch-dest': "empty",
+        'sec-fetch-mode': "cors",
+        'sec-fetch-site': "same-origin",
+        'user-agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.134 Safari/537.36 Edg/103.0.1264.77"
+    }
+    SOLD_QUERY = (
+        "query searchSold($input: SearchRequest) { search: searchSold(input: $input) {"
+        "  pages totalCount result {"
+        "    booliId soldPrice{raw} rent{raw} streetAddress constructionYear"
+        "    floor{raw} soldSqmPrice{raw} soldPriceAbsoluteDiff{raw}"
+        "    soldPricePercentageDiff{raw} listPrice{raw} firstPrice{raw}"
+        "    livingArea{raw} additionalArea{raw} rooms{raw}"
+        "    objectType descriptiveAreaName soldPriceType"
+        "    daysActive soldDate latitude longitude url"
+        "    operatingCost{raw} tenureForm plotArea{raw}"
+        "    apartmentNumber{raw} mapImage created soldPriceSource"
+        "    source{name id type} agent{name}"
+        "    energyClass{__typename} housingCoopId housingCoop{name id}"
+        "    areas{name id type} __typename"
+        "  } __typename } }"
+    )
+
+    def _post(self, payload):
+        response = requests.post(self.GRAPHQL_URL, data=json.dumps(payload), headers=self.HEADERS)
+        if response.status_code == 200:
+            return response.json()
+        raise Exception("Query failed to run: {} - {}".format(response.status_code, response.json()))
+
+    def run_query_sold(self, area_id, page, min_sold_date):
+        payload = {
+            "operationName": "searchSold",
+            "variables": {
+                "input": {
+                    "filters": [
+                        {"key": "minSoldDate", "value": min_sold_date},
                     ],
-                    "areaId":"%s",
-                    "sort":"published",
-                    "page":%s,
-                    "ascending":false
+                    "areaId": str(area_id),
+                    "sort": "created",
+                    "page": page,
+                    "ascending": False,
                 }
             },
-            "query":"query searchForSale($input: SearchRequest) { search: searchForSale(input: $input) { pages totalCount result { __typename ... on Listing { booliId descriptiveAreaName constructionYear floor{raw} livingArea{raw} listPrice{raw} rent{raw} listSqmPrice{raw} latitude longitude daysActive objectType rent{raw} operatingCost{raw} estimate{ price{raw} } rooms{raw} streetAddress url isNewConstruction biddingOpen upcomingSale mortgageDeed tenureForm plotArea{raw} hasPatio hasBalcony hasFireplace}} __typename  }}"
-        }"""
-        headers = {
-            'authority': "www.booli.se",
-            'accept': "*/*",
-            'accept-language': "sv,en;q=0.9,en-GB;q=0.8,en-US;q=0.7",
-            'api-client': "booli.se",
-            'content-type': "application/json",
-            'origin': "https://www.booli.se",
-            'sec-ch-ua-mobile': "?0",
-            'sec-ch-ua-platform': "Windows",
-            'sec-fetch-dest': "empty",
-            'sec-fetch-mode': "cors",
-            'sec-fetch-site': "same-origin",
-            'user-agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.134 Safari/537.36 Edg/103.0.1264.71"
+            "query": self.SOLD_QUERY,
         }
-        response = requests.post(self.path, data = payload % (object_type, rooms, area_id, page), headers=headers) # Throws 400
-        
-        if response.status_code == 200:
-            return response.json()
-        else:
-            raise Exception("Query failed to run: {} - {}".format(response.status_code, response.json()))
-        
-    def run_query_sold(self, object_type, minSoldDate, maxSoldDate, rooms, hasBalcony, hasFireplace, hasElevator, area_id, page):
-        payload = """{    
-            "operationName": "searchSold",    
-            "variables": {
-                "input": {            
-                    "filters": [                
-                        {                    
-                            "key": "objectType",
-                            "value": "%s"                
-                        },
-                        {
-					        "key": "minSoldDate",
-					        "value": "%s"
-				        },
-                        {
-                            "key": "maxSoldDate",
-                            "value": "%s"
-                        },                
-                        {                    
-                            "key": "rooms",                    
-                            "value": "%s"                
-                        },
-                         {                    
-                            "key": "hasBalcony",                    
-                            "value": "%s"                
-                        },
-                        {                    
-                            "key": "hasFireplace",                    
-                            "value": "%s"                
-                        },
-                        {                    
-                            "key": "hasElevator",                    
-                            "value": "%s"                
-                        }
-                    ],        
-                    "areaId": "%s",        
-                    "sort": "created",        
-                    "page": %s,        
-                    "ascending": false        
-                }    
-            },    
-            "query": "query searchSold($input: SearchRequest) {  search: searchSold(input: $input) {    pages    totalCount    result {      booliId      soldPrice{raw}      rent{raw}      streetAddress      constructionYear      floor{raw}      soldSqmPrice{raw}      soldPriceAbsoluteDiff{raw}      soldPricePercentageDiff{raw}      listPrice{raw}      firstPrice{raw}      livingArea{raw}      additionalArea{raw}      rooms{raw}      objectType      descriptiveAreaName      soldPriceType      daysActive      soldDate      latitude      longitude      url      operatingCost{raw}      tenureForm      plotArea{raw}      apartmentNumber{raw}      mapImage      created      soldPriceSource      source{name id type}      agent{name}      energyClass{__typename}      housingCoopId      housingCoop{name id}      areas{name id type}      __typename    }    __typename  }}"
-        }"""
-        headers = {
-            'authority': "www.booli.se",
-            'accept': "*/*",
-            'accept-language': "sv,en;q=0.9,en-GB;q=0.8,en-US;q=0.7",
-            'api-client': "booli.se",
-            'content-type': "application/json",
-            'origin': "https://www.booli.se",
-            'sec-ch-ua-mobile': "?0",
-            'sec-ch-ua-platform': "Windows",
-            'sec-fetch-dest': "empty",
-            'sec-fetch-mode': "cors",
-            'sec-fetch-site': "same-origin",
-            'user-agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.134 Safari/537.36 Edg/103.0.1264.77"
-        }
-        response = requests.post(self.path, data = payload % (object_type, minSoldDate, maxSoldDate, rooms, hasBalcony, hasFireplace, hasElevator, area_id, page), headers=headers) # Throws 400
-        
-        if response.status_code == 200:
-            return response.json()
-        else:
-            raise Exception("Query failed to run: {} - {}".format(response.status_code, response.json()))
-
-    def run_query_housing_coop(self, housing_coop_id):
-        payload = {
-            "operationName": "housingCoop",
-            "variables": {"housingCoopId": str(housing_coop_id)},
-            "query": """query housingCoop($housingCoopId: ID!) {
-                housingCoop(housingCoopId: $housingCoopId) {
-                    name
-                    id
-                    orgNumber
-                    year
-                    addresses { streetAddress }
-                    areas { name id type }
-                    numberOfResidences { raw formatted }
-                    numberOfUnits { raw formatted }
-                    description { markdown }
-                    feeToLivingArea { raw formatted }
-                    debtToLivingArea { raw formatted }
-                    savings { raw formatted }
-                    totalLoan { raw formatted }
-                    annualReports { year documentId documentType }
-                    economy { description { markdown } }
-                }
-            }"""
-        }
-        headers = {
-            'authority': "www.booli.se",
-            'accept': "*/*",
-            'accept-language': "sv,en;q=0.9,en-GB;q=0.8,en-US;q=0.7",
-            'api-client': "booli.se",
-            'content-type': "application/json",
-            'origin': "https://www.booli.se",
-            'sec-ch-ua-mobile': "?0",
-            'sec-ch-ua-platform': "Windows",
-            'sec-fetch-dest': "empty",
-            'sec-fetch-mode': "cors",
-            'sec-fetch-site': "same-origin",
-            'user-agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.134 Safari/537.36 Edg/103.0.1264.77"
-        }
-        response = requests.post(self.path, data=json.dumps(payload), headers=headers)
-
-        if response.status_code == 200:
-            return response.json()
-        else:
-            raise Exception("Query failed to run: {} - {}".format(response.status_code, response.json()))
+        return self._post(payload)
 
 #Structure created by Sarah Floris
 class DataCleaning:
