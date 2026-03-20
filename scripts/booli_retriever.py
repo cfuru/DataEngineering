@@ -215,6 +215,17 @@ SCHEMA = pa.schema([
 def records_to_arrow(records: list, ingest_date: str) -> pa.Table:
     """Normalize, rename, and cast Booli API records to a typed PyArrow table."""
     df = pd.json_normalize(records)
+
+    # When Booli returns a nullable nested field (e.g. rent: {raw: N}), some
+    # records have "rent": null (scalar) while others have "rent": {"raw": N}.
+    # json_normalize creates both "rent" and "rent.raw" columns. Merge them
+    # before renaming so we keep the actual value where available.
+    nested_bases = {col[:-4] for col in df.columns if col.endswith(".raw")}
+    for base in nested_bases:
+        if base in df.columns:
+            df[f"{base}.raw"] = df[f"{base}.raw"].combine_first(df[base])
+            df = df.drop(columns=[base])
+
     df = df.rename(columns=RENAME)
     df["ingest_date"] = ingest_date
 
@@ -241,6 +252,14 @@ def records_to_arrow(records: list, ingest_date: str) -> pa.Table:
             df[col] = None
     df = df[KEEP_COLUMNS]
 
+    # Ensure all string-typed columns contain only str or None — never floats.
+    # All-null columns inferred as float64 by pandas, and nullable nested fields
+    # (e.g. apartmentNumber.raw) can return numeric values from the API.
+    string_cols = {f.name for f in SCHEMA if pa.types.is_string(f.type)}
+    for col in string_cols:
+        if col in df.columns:
+            df[col] = df[col].apply(lambda x: str(x) if pd.notna(x) else None)
+
     return pa.Table.from_pandas(df, schema=SCHEMA, safe=False)
 
 
@@ -254,7 +273,7 @@ def merge_into_delta(table: pa.Table, output_path: str) -> None:
 
     if not DeltaTable.is_deltatable(output_path):
         log.info("Creating new Delta table at %s", output_path)
-        write_deltalake(output_path, table, schema=SCHEMA)
+        write_deltalake(output_path, table)  # schema is embedded in the PyArrow Table
         log.info("Delta table created with %d rows", len(table))
         return
 
