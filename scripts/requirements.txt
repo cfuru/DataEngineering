@@ -1,4 +1,8 @@
 requests>=2.31
+cloudscraper>=1.2
 pandas>=2.0
 pyarrow>=14
 deltalake>=0.17
+lxml>=5.0
+yahooquery>=2.3
+html5lib>=1.1

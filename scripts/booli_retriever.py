@@ -23,6 +23,14 @@ import pandas as pd
 import pyarrow as pa
 import requests
 
+try:
+    import cloudscraper
+    _session = cloudscraper.create_scraper()
+    log.info("Using cloudscraper (Cloudflare bypass)")
+except ImportError:
+    _session = requests.Session()
+    log.info("cloudscraper not installed — using plain requests")
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -75,7 +83,7 @@ def _post(payload: dict, max_retries: int = 4) -> dict:
     delay = 2
     for attempt in range(max_retries + 1):
         try:
-            response = requests.post(
+            response = _session.post(
                 GRAPHQL_URL, data=json.dumps(payload), headers=HEADERS, timeout=45
             )
             if response.status_code == 200:
