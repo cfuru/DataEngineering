@@ -35,3 +35,6 @@ dist/
 # BI artifacts
 *.pbix
 notebooks/exploration/
+
+# MLflow tracking (local experiments — not committed)
+models/mlruns/

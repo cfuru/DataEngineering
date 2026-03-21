@@ -1,0 +1,61 @@
+{
+  "trained_at": "2026-03-21T20:29:19.759567",
+  "train_rows": 492,
+  "test_rows": 2155,
+  "features": [
+    "listPrice",
+    "firstPrice",
+    "livingArea",
+    "rooms",
+    "rent",
+    "operatingCost",
+    "constructionYear",
+    "floor",
+    "additionalArea",
+    "plotArea",
+    "latitude",
+    "longitude",
+    "objectType",
+    "descriptiveAreaName",
+    "tenureForm",
+    "energyClass",
+    "rentPerSqm",
+    "sqmPerRoom",
+    "pricePerSqm_list",
+    "building_age",
+    "has_price_reduction",
+    "price_reduction_pct",
+    "listing_month",
+    "listing_quarter",
+    "listing_day_of_week"
+  ],
+  "categorical_features": [
+    "objectType",
+    "descriptiveAreaName",
+    "tenureForm",
+    "energyClass"
+  ],
+  "holdout_months": 1,
+  "metrics": {
+    "rmse": 1112863.9261560373,
+    "mae": 588393.3951290412,
+    "mape": 0.1035994321452767,
+    "median_ae": 317939.34973740764,
+    "r2": 0.9209707187113516
+  },
+  "best_params": {
+    "learning_rate": 0.12853936841108804,
+    "num_leaves": 56,
+    "min_child_samples": 11,
+    "subsample": 0.6986292084757424,
+    "colsample_bytree": 0.699504811357005,
+    "reg_alpha": 6.845315524603454e-08,
+    "reg_lambda": 7.163645585698278e-07,
+    "objective": "regression",
+    "metric": "rmse",
+    "n_estimators": 1000,
+    "verbose": -1
+  },
+  "data_hash": "576ca7b412cd8146",
+  "best_cv_rmse": 1491006.1533223228
+}

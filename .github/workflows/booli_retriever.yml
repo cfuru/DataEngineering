@@ -1,0 +1,46 @@
+name: Booli Data Retriever
+
+on:
+  schedule:
+    - cron: '30 21 * * *'   # 21:30 UTC daily — matches existing Azure Function trigger
+  workflow_dispatch:          # allow manual runs from the Actions tab
+
+concurrency:
+  group: booli-retriever
+  cancel-in-progress: false   # let the current run finish, queue the next one
+
+jobs:
+  retrieve:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write           # required to commit Delta files back to the repo
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: scripts/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r scripts/requirements.txt
+
+      - name: Run Booli retriever
+        env:
+          BOOLI_AREA_IDS: '1'         # stockholms_kommun; add comma-separated IDs for more areas
+          BOOLI_LOOKBACK_DAYS: '31'
+          BOOLI_OUTPUT_DIR: data/booli/delta/sold
+        run: python scripts/booli_retriever.py
+
+      - name: Commit and push Delta files
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/booli/delta/
+          git diff --cached --quiet && echo "No changes to commit" && exit 0
+          git commit -m "chore: booli data ingest $(date -u +%Y-%m-%d)"
+          git push
