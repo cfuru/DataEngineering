@@ -31,11 +31,22 @@ log = logging.getLogger(__name__)
 
 try:
     import cloudscraper
-    _session = cloudscraper.create_scraper()
+    _session = cloudscraper.create_scraper(
+        browser={"browser": "chrome", "platform": "windows", "mobile": False},
+    )
     log.info("Using cloudscraper (Cloudflare bypass)")
 except ImportError:
     _session = requests.Session()
     log.info("cloudscraper not installed — using plain requests")
+
+
+def _warmup_session() -> None:
+    """Visit the Booli homepage to obtain Cloudflare clearance cookies."""
+    try:
+        resp = _session.get("https://www.booli.se/", headers=HEADERS, timeout=30)
+        log.info("Session warmup: status=%d cookies=%d", resp.status_code, len(_session.cookies))
+    except Exception as exc:
+        log.warning("Session warmup failed: %s", exc)
 
 # ---------------------------------------------------------------------------
 # Booli GraphQL client
@@ -79,8 +90,8 @@ SOLD_QUERY = (
 )
 
 
-def _post(payload: dict, max_retries: int = 4) -> dict:
-    delay = 2
+def _post(payload: dict, max_retries: int = 5) -> dict:
+    delay = 3
     for attempt in range(max_retries + 1):
         try:
             response = _session.post(
@@ -88,6 +99,15 @@ def _post(payload: dict, max_retries: int = 4) -> dict:
             )
             if response.status_code == 200:
                 return response.json()
+            if response.status_code == 403 and attempt < max_retries:
+                log.warning(
+                    "Got 403 (Cloudflare challenge) — warming up session and retrying in %ds (attempt %d/%d)",
+                    delay, attempt + 1, max_retries,
+                )
+                _warmup_session()
+                time.sleep(delay)
+                delay *= 2
+                continue
             raise RuntimeError(
                 f"GraphQL query failed: {response.status_code} — {response.text[:200]}"
             )
@@ -343,6 +363,9 @@ def merge_into_delta(table: pa.Table, output_path: str) -> None:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
+    # Warm up session to obtain Cloudflare clearance cookies before API calls
+    _warmup_session()
+
     area_ids = [
         int(x.strip())
         for x in os.environ.get("BOOLI_AREA_IDS", DEFAULT_AREA_IDS).split(",")
