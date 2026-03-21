@@ -2,3 +2,6 @@
 # This prevents git history from accumulating full binary copies on every daily commit.
 data/booli/delta/**/*.parquet filter=lfs diff=lfs merge=lfs -text
 data/booli/delta/_delta_log/*.json filter=lfs diff=lfs merge=lfs -text
+
+# ML model artifacts
+models/production/*.joblib filter=lfs diff=lfs merge=lfs -text
