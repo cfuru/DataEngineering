@@ -29,22 +29,29 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
+_USE_CURL_CFFI = False
 try:
-    import cloudscraper
-    _session = cloudscraper.create_scraper(
-        browser={"browser": "chrome", "platform": "windows", "mobile": False},
-    )
-    log.info("Using cloudscraper (Cloudflare bypass)")
+    from curl_cffi.requests import Session as CffiSession
+    _session = CffiSession(impersonate="chrome")
+    _USE_CURL_CFFI = True
+    log.info("Using curl_cffi (Chrome TLS fingerprint impersonation)")
 except ImportError:
-    _session = requests.Session()
-    log.info("cloudscraper not installed — using plain requests")
+    try:
+        import cloudscraper
+        _session = cloudscraper.create_scraper(
+            browser={"browser": "chrome", "platform": "windows", "mobile": False},
+        )
+        log.info("Using cloudscraper (Cloudflare bypass)")
+    except ImportError:
+        _session = requests.Session()
+        log.info("Using plain requests (no Cloudflare bypass)")
 
 
 def _warmup_session() -> None:
     """Visit the Booli homepage to obtain Cloudflare clearance cookies."""
     try:
         resp = _session.get("https://www.booli.se/", headers=HEADERS, timeout=30)
-        log.info("Session warmup: status=%d cookies=%d", resp.status_code, len(_session.cookies))
+        log.info("Session warmup: status=%d cookies=%d", resp.status_code, len(resp.cookies))
     except Exception as exc:
         log.warning("Session warmup failed: %s", exc)
 
@@ -95,7 +102,7 @@ def _post(payload: dict, max_retries: int = 5) -> dict:
     for attempt in range(max_retries + 1):
         try:
             response = _session.post(
-                GRAPHQL_URL, data=json.dumps(payload), headers=HEADERS, timeout=45
+                GRAPHQL_URL, json=payload, headers=HEADERS, timeout=45
             )
             if response.status_code == 200:
                 return response.json()
@@ -111,7 +118,7 @@ def _post(payload: dict, max_retries: int = 5) -> dict:
             raise RuntimeError(
                 f"GraphQL query failed: {response.status_code} — {response.text[:200]}"
             )
-        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as exc:
+        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError, OSError) as exc:
             if attempt == max_retries:
                 raise
             log.warning("Request failed (%s) — retrying in %ds (attempt %d/%d)", exc, delay, attempt + 1, max_retries)
