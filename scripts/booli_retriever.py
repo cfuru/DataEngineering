@@ -23,6 +23,12 @@ import pandas as pd
 import pyarrow as pa
 import requests
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+)
+log = logging.getLogger(__name__)
+
 try:
     import cloudscraper
     _session = cloudscraper.create_scraper()
@@ -30,12 +36,6 @@ try:
 except ImportError:
     _session = requests.Session()
     log.info("cloudscraper not installed — using plain requests")
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-)
-log = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Booli GraphQL client
