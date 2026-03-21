@@ -10,7 +10,18 @@ from datetime import date, timedelta
 from shared_code import utils
 
 DEFAULT_AREAS = [
-    {"area_id": 1, "name": "stockholms_kommun"},
+    {"area_id": 1,   "name": "stockholm"},
+    {"area_id": 22,  "name": "goteborg"},
+    {"area_id": 78,  "name": "malmo"},
+    {"area_id": 419, "name": "uppsala"},
+    {"area_id": 393, "name": "linkoping"},
+    {"area_id": 334, "name": "orebro"},
+    {"area_id": 424, "name": "vasteras"},
+    {"area_id": 88,  "name": "helsingborg"},
+    {"area_id": 724, "name": "jonkoping"},
+    {"area_id": 252, "name": "norrkoping"},
+    {"area_id": 249, "name": "sundsvall"},
+    {"area_id": 597, "name": "umea"},
 ]
 
 

@@ -8,7 +8,7 @@ Usage:
     python scripts/booli_retriever.py
 
 Environment variables:
-    BOOLI_AREA_IDS      Comma-separated area IDs  (default: "1")
+    BOOLI_AREA_IDS      Comma-separated area IDs  (default: all major Swedish cities)
     BOOLI_LOOKBACK_DAYS Lookback window in days    (default: 31)
     BOOLI_OUTPUT_DIR    Delta table path           (default: data/booli/delta/sold)
 """
@@ -71,15 +71,44 @@ SOLD_QUERY = (
 )
 
 
-def _post(payload: dict) -> dict:
-    response = requests.post(
-        GRAPHQL_URL, data=json.dumps(payload), headers=HEADERS, timeout=30
-    )
-    if response.status_code == 200:
-        return response.json()
-    raise RuntimeError(
-        f"GraphQL query failed: {response.status_code} — {response.text[:200]}"
-    )
+def _post(payload: dict, max_retries: int = 4) -> dict:
+    delay = 2
+    for attempt in range(max_retries + 1):
+        try:
+            response = requests.post(
+                GRAPHQL_URL, data=json.dumps(payload), headers=HEADERS, timeout=45
+            )
+            if response.status_code == 200:
+                return response.json()
+            raise RuntimeError(
+                f"GraphQL query failed: {response.status_code} — {response.text[:200]}"
+            )
+        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as exc:
+            if attempt == max_retries:
+                raise
+            log.warning("Request failed (%s) — retrying in %ds (attempt %d/%d)", exc, delay, attempt + 1, max_retries)
+            time.sleep(delay)
+            delay *= 2
+
+
+# Major Swedish municipalities with their Booli area IDs.
+# IDs are municipality-level (type=municipality in the Booli area hierarchy).
+SWEDISH_CITIES: dict[int, str] = {
+    1:   "stockholm",
+    22:  "goteborg",
+    78:  "malmo",
+    419: "uppsala",
+    393: "linkoping",
+    334: "orebro",
+    424: "vasteras",
+    88:  "helsingborg",
+    724: "jonkoping",
+    252: "norrkoping",
+    249: "sundsvall",
+    597: "umea",
+}
+
+DEFAULT_AREA_IDS = ",".join(str(k) for k in SWEDISH_CITIES)
 
 
 def fetch_sold(area_id: int, min_sold_date: str) -> list:
@@ -168,7 +197,7 @@ KEEP_COLUMNS = [
     "listPrice", "firstPrice", "livingArea", "additionalArea", "rooms",
     "operatingCost", "plotArea", "apartmentNumber", "tenureForm",
     "created", "soldPriceSource", "housingCoopId", "brokerFirm", "brokerFirmId",
-    "agentName", "housingCoopName", "energyClass", "ingest_date",
+    "agentName", "housingCoopName", "energyClass", "city", "ingest_date",
 ]
 
 # Explicit PyArrow schema keeps Delta types stable across runs
@@ -208,11 +237,12 @@ SCHEMA = pa.schema([
     pa.field("agentName",               pa.string(),  nullable=True),
     pa.field("housingCoopName",         pa.string(),  nullable=True),
     pa.field("energyClass",             pa.string(),  nullable=True),
+    pa.field("city",                    pa.string(),  nullable=True),
     pa.field("ingest_date",             pa.string(),  nullable=False),
 ])
 
 
-def records_to_arrow(records: list, ingest_date: str) -> pa.Table:
+def records_to_arrow(records: list, ingest_date: str, city: str | None = None) -> pa.Table:
     """Normalize, rename, and cast Booli API records to a typed PyArrow table."""
     df = pd.json_normalize(records)
 
@@ -228,6 +258,7 @@ def records_to_arrow(records: list, ingest_date: str) -> pa.Table:
 
     df = df.rename(columns=RENAME)
     df["ingest_date"] = ingest_date
+    df["city"] = city
 
     int_cols = [
         "booliId", "constructionYear", "daysActive",
@@ -306,7 +337,7 @@ def merge_into_delta(table: pa.Table, output_path: str) -> None:
 def main() -> None:
     area_ids = [
         int(x.strip())
-        for x in os.environ.get("BOOLI_AREA_IDS", "1").split(",")
+        for x in os.environ.get("BOOLI_AREA_IDS", DEFAULT_AREA_IDS).split(",")
     ]
     lookback_days = int(os.environ.get("BOOLI_LOOKBACK_DAYS", "31"))
     output_dir = os.environ.get("BOOLI_OUTPUT_DIR", "data/booli/delta/sold")
@@ -321,19 +352,23 @@ def main() -> None:
         min_sold_date,
     )
 
-    all_records = []
+    all_tables: list[pa.Table] = []
     for area_id in area_ids:
-        log.info("Fetching area_id=%d", area_id)
+        city = SWEDISH_CITIES.get(area_id)
+        log.info("Fetching area_id=%d (%s)", area_id, city or "unknown")
         records = fetch_sold(area_id, min_sold_date)
-        all_records.extend(records)
-        log.info("area_id=%d done — %d records", area_id, len(records))
+        if records:
+            all_tables.append(records_to_arrow(records, ingest_date, city))
+            log.info("area_id=%d done — %d records", area_id, len(records))
+        else:
+            log.warning("area_id=%d — no records", area_id)
 
-    if not all_records:
+    if not all_tables:
         log.warning("No records retrieved — nothing to write")
         return
 
-    log.info("Total records: %d — converting to Arrow", len(all_records))
-    table = records_to_arrow(all_records, ingest_date)
+    table = pa.concat_tables(all_tables)
+    log.info("Total records: %d across %d cities — writing to Delta", len(table), len(all_tables))
     os.makedirs(output_dir, exist_ok=True)
     merge_into_delta(table, output_dir)
     log.info("Done.")
