@@ -1,16 +1,12 @@
-import queue
 import pandas as pd
 import logging
 import requests as r
 import yfinance as yf
 
 from lxml import html
-from io import BytesIO
-from io import StringIO
 from datetime import date
 from yahooquery import Ticker
 from azure.storage.blob import BlobServiceClient
-from azure.storage.filedatalake import DataLakeServiceClient
 from azure.identity import DefaultAzureCredential
 from azure.keyvault.secrets import SecretClient
 from azure.storage.queue import (
@@ -24,30 +20,20 @@ class AzureUtils:
         self.vault_url = "https://kv-yahoo-prod-001.vault.azure.net/"
 
     def initialize_storage_account_ad(self, storage_account_secret, blob):
-        try:  
+        try:
             global blob_service_client_instance
             blob_service_client_instance = BlobServiceClient(
-                account_url = "{}://{}.blob.core.windows.net".format("https", blob), 
+                account_url = "{}://{}.blob.core.windows.net".format("https", blob),
                 credential = storage_account_secret
                 )
         except Exception as e:
             logging.error(f"Could not create blob service client: {e}")
-            
-    def initialize_data_lake(self, storage_account_name, storage_account_secret):
-        try:  
-            global datalake_service_client
-            datalake_service_client = DataLakeServiceClient(
-                account_url = "{}://{}.dfs.core.windows.net".format("https", storage_account_name), 
-                credential = storage_account_secret
-                )
-        except Exception as e:
-            logging.error(f"Could not create data lake service client: {e}")
 
     def initialize_queue_client(self, accountUrl, queueName):
-        try:  
+        try:
             global queue_client_instance
             queue_client_instance = QueueClient.from_connection_string(
-                conn_str = accountUrl, 
+                conn_str = accountUrl,
                 queue_name = queueName,
                 message_encode_policy = BinaryBase64EncodePolicy(),
                 message_decode_policy = BinaryBase64DecodePolicy()
@@ -62,7 +48,7 @@ class AzureUtils:
             logging.info(f"Queued message {message} successfully")
         except Exception as e:
             logging.error(f"Error queueing message {message}: {e}")
-   
+
     def upload_blob(self, data, container, blob_name):
         blob_client_instance = blob_service_client_instance.get_blob_client(container, blob_name, snapshot = None)
         try:
@@ -70,60 +56,7 @@ class AzureUtils:
             logging.info(f"Created blob {blob_name} successfully")
         except Exception as e:
             logging.error(f"Error creating blob {blob_name}: {e}")
-            
-    def write_dataframe_to_datalake(self, df, dir_name, filename):
-        file_system_client = datalake_service_client.get_file_system_client(file_system = "gold")
-        directory_client = file_system_client.get_directory_client(dir_name)
-        file_client = directory_client.create_file(f'{filename}_{date.today()}.Parquet')
-        
-        df_parquet = df.to_parquet()
-        file_client.append_data(data = df_parquet, offset = 0, length = len(df_parquet))
-        file_client.flush_data(len(df_parquet))
-        return True
-    
-    def download_parquet_blob(self, container, blob_name):
-        blob_client_instance = blob_service_client_instance.get_blob_client(container, blob_name, snapshot = None)
-        try:
-            with BytesIO() as input_blob:
-                blob_client_instance.download_blob().download_to_stream(input_blob)
-                input_blob.seek(0)
-                df = pd.read_parquet(input_blob)
-            logging.info(f"Downloaded blob {blob_name} successfully")    
-        except Exception as e:
-            logging.error(f"Error downloadning blob {blob_name}: {e}")
-        return df
-    
-    def download_csv_blob(self, container, blob_name):
-        blob_client_instance = blob_service_client_instance.get_blob_client(container, blob_name, snapshot = None)
-        try:
-            with BytesIO() as input_blob:
-                blob_client_instance.download_blob().download_to_stream(input_blob)
-                input_blob.seek(0)
-                df = pd.read_csv(input_blob)
-            logging.info(f"Downloaded blob {blob_name} successfully")    
-        except Exception as e:
-            logging.error(f"Error downloadning blob {blob_name}: {e}")
-        return df
-    
-    def ingest_bronze_data(self, directory):
-        blob_list = self.list_blobs("bronze", directory)
-        df = pd.concat([self.download_parquet_blob("bronze", blob.name) for blob in blob_list], ignore_index = True)
-        return df
-    
-    def ingest_silver_data(self, directory):
-        blob_list = self.list_blobs("silver", directory)
-        df = pd.concat([self.download_parquet_blob("silver", blob.name) for blob in blob_list], ignore_index = True)
-        return df
-    
-    def list_blobs(self, container, blob_name_starts_with):
-        try:
-            container_client_instance = blob_service_client_instance.get_container_client(container)
-            blob_list = container_client_instance.list_blobs(blob_name_starts_with)
-            logging.info(f"Retreived list of blobs that starts with name {blob_name_starts_with} from container {container}")
-        except Exception as e:
-            logging.error(f"Error retreiving list of blobs in container {container} with blob name starting with {blob_name_starts_with}: {e}")
-        return blob_list
-            
+
     def initialize_key_vault(self):
         credential = DefaultAzureCredential(additionally_allowed_tenants=['*'])
         secret_client = SecretClient(vault_url = self.vault_url, credential=credential)
@@ -134,7 +67,7 @@ class AzureUtils:
 
 class yahooUtils:
     def __init__(self):
-        self.nasdaq_base_url = "http://www.nasdaqomxnordic.com" 
+        self.nasdaq_base_url = "http://www.nasdaqomxnordic.com"
         self.nasdaq_full_url = self.nasdaq_base_url + "/shares/listed-companies/stockholm"
         self.sp500_url = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
 
@@ -182,21 +115,21 @@ class StockFundamentals:
     def fetch_data(self):
         self.income_statement = self.ticker.income_statement(frequency = 'q', trailing = False).sort_values('asOfDate').set_index("asOfDate")
         self.income_statement["Ticker"] = self.symbol
-        
+
         self.balance_sheet = self.ticker.balance_sheet(frequency = 'q', trailing = False).sort_values('asOfDate').set_index("asOfDate")
         self.balance_sheet["Ticker"] = self.symbol
-        
+
         self.cash_flow = self.ticker.cash_flow(frequency = 'q', trailing = False).sort_values('asOfDate').set_index("asOfDate")
         self.cash_flow["Ticker"] = self.symbol
-        
+
         self.valuation_measure = self.ticker.valuation_measures
         self.valuation_measure = self.valuation_measure[~self.valuation_measure.EnterpriseValue.isnull()]
-        
+
         self.asset_profile = pd.DataFrame(self.ticker.asset_profile).T
         self.asset_profile = self.asset_profile.drop(columns = ["companyOfficers"])
-        
+
         self.financial_data = pd.DataFrame(self.ticker.financial_data).T
-                
+
 class PiotroskiScoreCalculator:
     def __init__(self, stock):
         self.stock = stock
@@ -272,77 +205,15 @@ class PiotroskiScoreCalculator:
 
             total_score = sum([roa_score, cfo_score, delta_roa_score, quality_of_earnings_score, delta_leverage_score,
                                 delta_liquidity_score, new_equity_score, gross_margin_score, asset_turnover_score])
-            
+
             # Save the data
-            score_data.append([date, roa_score, cfo_score, delta_roa_score, quality_of_earnings_score, 
-                               delta_leverage_score, delta_liquidity_score, new_equity_score, 
+            score_data.append([date, roa_score, cfo_score, delta_roa_score, quality_of_earnings_score,
+                               delta_leverage_score, delta_liquidity_score, new_equity_score,
                                gross_margin_score, asset_turnover_score, total_score])
 
         # Convert the data into a DataFrame
-        scores_df = pd.DataFrame(score_data, columns=['Date', 'ROA', 'CFO', 'Delta ROA', 'Quality of Earnings', 
-                                                      'Delta Leverage', 'Delta Liquidity', 'New Equity', 
+        scores_df = pd.DataFrame(score_data, columns=['Date', 'ROA', 'CFO', 'Delta ROA', 'Quality of Earnings',
+                                                      'Delta Leverage', 'Delta Liquidity', 'New Equity',
                                                       'Gross Margin', 'Asset Turnover', 'Piotroski Score'])
 
         return scores_df
-
-
-#Structure created by Sarah Floris
-class DataCleaning:
-    def __init__(self):
-        pass
-    
-    def pivot_fundamentals_dataframe(self, df, selected_index = ["Ticker", "ObservationDate"], selected_column = "Attribute", selected_value = "Recent"):
-        try:
-            return df.pivot(index = selected_index, columns = selected_column, values = selected_value).reset_index()
-        except Exception as e:
-            logging.error(f"Couldn't pivot the dataframe: {e}")
-    
-    def select_dataframe_columns(self, df, columns):
-        try:
-            return df[columns]
-        except Exception as e:
-            logging.error(f"Could not select columns {columns}: {e}")
-            
-    def set_dtype_to_numeric(self, df, cols_to_exclude):
-        try:
-            df.loc[:, ~df.columns.isin(cols_to_exclude)] = df.loc[:, ~df.columns.isin(cols_to_exclude)].apply(pd.to_numeric, errors = 'coerce')
-        except Exception as e:
-            logging.error(f"Could not change data type to numeric for all columns except {cols_to_exclude}: {e}")
-        return df
-    
-    def change_timestamp_to_datetime(self, df, column_name):
-        try:
-            df[column_name] = df[column_name].apply(lambda x: pd.to_datetime(x, unit = 's'))
-        except Exception as e:
-            logging.error(f"Could not change timestamp to datetime for column {column_name}: {e}")
-        return df
-    
-    def change_timestamp_format(self, df, column_name, date_format = '%Y-%m-%d'):
-        df[column_name] = df[column_name].apply(lambda x: pd.to_datetime(x, format = date_format))
-        return df
-    
-class FeatureEngineering:
-    def __init__(self):
-        pass
-    
-class DataFactory:
-    def get_formatter(self, format):
-        if format == 'Cleaning':
-            return DataCleaning()
-        elif format == 'Features':
-            return FeatureEngineering()
-        else:
-            ValueError(format)
-        
-
-
-
-
-
-
-
-
-
-
-
-
