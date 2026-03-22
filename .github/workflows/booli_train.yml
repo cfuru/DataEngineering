@@ -44,4 +44,5 @@ jobs:
           git add models/production/
           git diff --cached --quiet && echo "No model changes" && exit 0
           git commit -m "chore: retrain booli price model $(date -u +%Y-%m-%d)"
+          git pull --rebase
           git push
