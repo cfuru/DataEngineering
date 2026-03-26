@@ -341,32 +341,26 @@ def write_delta(df: pd.DataFrame, table_path: str, merge_key: str | None = None)
 # Entry point
 # ---------------------------------------------------------------------------
 
-def fetch_ticker_fundamentals(ticker: str, market: str, output_dir: str, ingest_date: str) -> None:
-    """Fetch all fundamentals for a single ticker and write to Delta tables."""
+def fetch_ticker_fundamentals(ticker: str, ingest_date: str) -> dict[str, pd.DataFrame]:
+    """Fetch all fundamentals for a single ticker.
+
+    Returns a dict of dataset_name -> DataFrame (all with ingest_date and
+    reset index).  Piotroski score is computed and included if possible.
+    """
     stock = StockFundamentals(ticker)
     datasets = stock.fetch()
 
     if not datasets:
         log.warning("  %s — no data returned, skipping", ticker)
-        return
+        return {}
 
-    # Write each dataset to its own Delta table
-    dataset_merge_keys = {
-        "income_statement": None,
-        "balance_sheet": None,
-        "cash_flow": None,
-        "valuation_measure": None,
-        "asset_profile": None,
-        "financial_data": None,
-    }
-
+    result: dict[str, pd.DataFrame] = {}
     for name, df in datasets.items():
         df = df.reset_index()
         df["ingest_date"] = ingest_date
-        table_path = os.path.join(output_dir, name, market)
-        write_delta(df, table_path, merge_key=dataset_merge_keys.get(name))
+        result[name] = df
 
-    # Compute and write Piotroski score
+    # Compute Piotroski score
     income = datasets.get("income_statement")
     balance = datasets.get("balance_sheet")
     cashflow = datasets.get("cash_flow")
@@ -375,11 +369,14 @@ def fetch_ticker_fundamentals(ticker: str, market: str, output_dir: str, ingest_
         scores = compute_piotroski_score(income, balance, cashflow, ticker)
         if scores is not None:
             scores["ingest_date"] = ingest_date
-            table_path = os.path.join(output_dir, "piotroski_score", market)
-            write_delta(scores, table_path)
+            result["piotroski_score"] = scores
+
+    return result
 
 
 def main() -> None:
+    from deltalake import DeltaTable
+
     markets = [
         m.strip()
         for m in os.environ.get("YAHOO_MARKETS", "nasdaq_omx,sp500").split(",")
@@ -411,16 +408,36 @@ def main() -> None:
             tickers = tickers[:max_tickers]
             log.info("Limited to %d tickers", max_tickers)
 
-        # Fetch fundamentals for each ticker
+        # Fetch fundamentals for each ticker, batching results in memory
+        batched: dict[str, list[pd.DataFrame]] = {}
         failed = 0
         for i, ticker in enumerate(tickers, 1):
             log.info("[%d/%d] Fetching %s (%s)", i, len(tickers), ticker, market)
             try:
-                fetch_ticker_fundamentals(ticker, market, output_dir, ingest_date)
+                ticker_data = fetch_ticker_fundamentals(ticker, ingest_date)
+                for name, df in ticker_data.items():
+                    batched.setdefault(name, []).append(df)
             except Exception:
                 log.exception("  Failed to process %s", ticker)
                 failed += 1
             time.sleep(0.5)  # rate-limit
+
+        # Write each dataset once per market (single parquet file per dataset)
+        for name, dfs in batched.items():
+            combined = pd.concat(dfs, ignore_index=True)
+            table_path = os.path.join(output_dir, name, market)
+            write_delta(combined, table_path)
+            log.info("Wrote %s — %d rows, %d tickers", name, len(combined),
+                     combined["Ticker"].nunique() if "Ticker" in combined.columns else "?")
+
+        # Vacuum old parquet files for all tables in this market
+        for name in [*batched, "companies"]:
+            table_path = os.path.join(output_dir, name, market)
+            if DeltaTable.is_deltatable(table_path):
+                dt = DeltaTable(table_path)
+                removed = dt.vacuum(retention_hours=0, enforce_retention_duration=False, dry_run=False)
+                if removed:
+                    log.info("Vacuumed %s — removed %d old files", name, len(removed))
 
         log.info(
             "%s complete — %d/%d tickers processed (%d failed)",
