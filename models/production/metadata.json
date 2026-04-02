@@ -1,7 +1,7 @@
 {
-  "trained_at": "2026-04-01T22:06:24.689112",
-  "train_rows": 396,
-  "test_rows": 2669,
+  "trained_at": "2026-04-02T22:04:53.057043",
+  "train_rows": 474,
+  "test_rows": 2720,
   "features": [
     "listPrice",
     "firstPrice",
@@ -37,25 +37,25 @@
   ],
   "holdout_months": 1,
   "metrics": {
-    "rmse": 1237395.0827870364,
-    "mae": 694940.8010260757,
-    "mape": 0.11877215148265183,
-    "median_ae": 405170.87510666065,
-    "r2": 0.9082946036587946
+    "rmse": 1268269.1735197396,
+    "mae": 750496.0013969869,
+    "mape": 0.12855927773175868,
+    "median_ae": 422253.13489492214,
+    "r2": 0.9019593520255839
   },
   "best_params": {
-    "learning_rate": 0.09434095961506571,
-    "num_leaves": 59,
-    "min_child_samples": 30,
-    "subsample": 0.6017795337066656,
-    "colsample_bytree": 0.6112374423592387,
-    "reg_alpha": 1.810845273927149,
-    "reg_lambda": 0.00017106229290480044,
+    "learning_rate": 0.1391075721523896,
+    "num_leaves": 32,
+    "min_child_samples": 37,
+    "subsample": 0.8567840011268124,
+    "colsample_bytree": 0.8390178121791327,
+    "reg_alpha": 1.3224478540372699e-08,
+    "reg_lambda": 2.134620494196056e-06,
     "objective": "regression",
     "metric": "rmse",
     "n_estimators": 1000,
     "verbose": -1
   },
-  "data_hash": "f3491e518a486e64",
-  "best_cv_rmse": 1800093.465885263
+  "data_hash": "c02bc06b9e236a97",
+  "best_cv_rmse": 2014281.149467659
 }
